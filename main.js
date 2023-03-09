@@ -114,7 +114,13 @@ const main = async function () {
   const matches = episodeRegex.exec(link)
   const episodeId = matches[1];
 
-  let resp = await axios.get(`https://api.bilibili.tv/intl/gateway/web/playurl?s_locale=vi_VN&platform=web&ep_id=${episodeId}`).then(r => r);
+  console.log('Downloading page...\r\n');
+  let resp = await axios.get(link).then(r => r);
+
+  const title = /<title>(.*?)( - Bilibili)?<\/title>/.exec(resp.data)[1];
+  console.log(`Episode name: ${title}\r\n`);
+
+  resp = await axios.get(`https://api.bilibili.tv/intl/gateway/web/playurl?s_locale=vi_VN&platform=web&ep_id=${episodeId}`).then(r => r);
 
   const videoSources = resp.data.data.playurl.video;
   const audioSources = resp.data.data.playurl.audio_resource;
@@ -160,7 +166,7 @@ const main = async function () {
   await convert2srt();
 
   console.log('Merge resources:');
-  await mergeVideo('final.mp4');
+  await mergeVideo(`${title}.mp4`);
 
   // remove temp
   fs.unlinkSync(Path.resolve(__dirname, 'temp', 'video.m4v'));
