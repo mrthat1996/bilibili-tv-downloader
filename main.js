@@ -16,12 +16,12 @@ function formatTime(seconds) {
   return new Date(seconds * 1000).toISOString().slice(11, 23)
 }
 
-function convert2srt() {
-  let rows = fs.readFileSync(Path.resolve(__dirname, 'temp', 'subtitle.json'), 'utf8');
+function convert2srt(name) {
+  let rows = fs.readFileSync(Path.resolve(__dirname, 'temp', `${name}.json`), 'utf8');
   rows = JSON.parse(rows).body;
   rows.forEach((row, i) => {
     const formatted = `${i + 1}\r\n${formatTime(row.from)} --> ${formatTime(row.to)}\r\n${row.content}\r\n`
-    fs.appendFileSync(Path.resolve(__dirname, 'temp', 'subtitle.srt'), formatted + '\r\n')
+    fs.appendFileSync(Path.resolve(__dirname, 'temp', `${name}.srt`), formatted + '\r\n')
   });
 }
 
@@ -35,16 +35,16 @@ async function askQuestion(query) {
   }))
 }
 
-async function mergeVideo(name) {
+async function mergeVideo(name, video, audio, subtitle) {
   return new Promise((resolve, reject) => {
     const progressBar = new ProgressBar('[:bar] :percent :etas', {
       width: 40, complete: '=', incomplete: ' ', renderThrottle: 1, total: 100
     })
 
     ffmpeg()
-      .addInput(Path.resolve(__dirname, 'temp', 'video.m4v'))
-      .addInput(Path.resolve(__dirname, 'temp', 'audio.m4a'))
-      .addInput(Path.resolve(__dirname, 'temp', 'subtitle.srt'))
+      .addInput(Path.resolve(__dirname, 'temp', video))
+      .addInput(Path.resolve(__dirname, 'temp', audio))
+      .addInput(Path.resolve(__dirname, 'temp', subtitle))
       .addOptions(['-map 0', '-map 1', '-map 2', '-c copy', '-c:s mov_text',])
       .on('error', (error) => {
         if (error) {
@@ -138,14 +138,14 @@ const main = async function () {
 
   let selectedAudioIndex = -1;
   while (!Array.from(Array(audioSources.length).keys()).includes(parseInt(selectedAudioIndex))) {
-    selectedAudioIndex = await askQuestion('* Please select audio quality:\r\n' + audioSources.map((source, i) => {
+    selectedAudioIndex = await askQuestion('\r\n* Please select audio quality:\r\n' + audioSources.map((source, i) => {
       return `${i}. ${source.quality} - ${source.codecs} - ${(source.size / 1024 / 1024).toFixed(2)} MB`;
     }).join('\r\n') + '\r\n' + ' > Your select: ');
   }
 
   let selectedSubtitleIndex = -1;
   while (!Array.from(Array(subtitleSources.length).keys()).includes(parseInt(selectedSubtitleIndex))) {
-    selectedSubtitleIndex = await askQuestion('* Please select subtitle:\r\n' + subtitleSources.map((source, i) => {
+    selectedSubtitleIndex = await askQuestion('\r\n* Please select subtitle:\r\n' + subtitleSources.map((source, i) => {
       return `${i}. ${source.lang_key} - ${source.lang}`;
     }).join('\r\n') + '\r\n' + ' > Your select: ');
   }
@@ -154,25 +154,27 @@ const main = async function () {
   const audioUrl = audioSources[selectedAudioIndex].url;
   const subtitleUrl = subtitleSources[selectedSubtitleIndex].url;
 
+  const uniqueToken = new Date().getTime();
+
   console.log('Start download video:');
-  await downloadFile(videoUrl, 'video.m4v');
+  await downloadFile(videoUrl, `${uniqueToken}.m4v`);
 
   console.log('Start download audio:');
-  await downloadFile(audioUrl, 'audio.m4a');
+  await downloadFile(audioUrl, `${uniqueToken}.m4a`);
 
   console.log('Start download subtitle:');
-  await downloadFile(subtitleUrl, 'subtitle.json');
+  await downloadFile(subtitleUrl, `${uniqueToken}.json`);
 
-  await convert2srt();
+  await convert2srt(uniqueToken);
 
   console.log('Merge resources:');
-  await mergeVideo(`${title}.mp4`);
+  await mergeVideo(`${title}.mp4`, `${uniqueToken}.m4v`, `${uniqueToken}.m4a`, `${uniqueToken}.srt`);
 
   // remove temp
-  fs.unlinkSync(Path.resolve(__dirname, 'temp', 'video.m4v'));
-  fs.unlinkSync(Path.resolve(__dirname, 'temp', 'audio.m4a'));
-  fs.unlinkSync(Path.resolve(__dirname, 'temp', 'subtitle.srt'));
-  fs.unlinkSync(Path.resolve(__dirname, 'temp', 'subtitle.json'));
+  fs.unlinkSync(Path.resolve(__dirname, 'temp', `${uniqueToken}.m4v`));
+  fs.unlinkSync(Path.resolve(__dirname, 'temp', `${uniqueToken}.m4a`));
+  fs.unlinkSync(Path.resolve(__dirname, 'temp', `${uniqueToken}.json`));
+  fs.unlinkSync(Path.resolve(__dirname, 'temp', `${uniqueToken}.srt`));
 }
 
 main();
