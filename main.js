@@ -9,8 +9,7 @@ require('dotenv').config();
 const episodeRegex = /^https:\/\/www.bilibili.tv\/vi\/play\/[0-9]+\/([0-9]+)/;
 
 axios.defaults.headers = {
-  referer: ' https://www.bilibili.tv/',
-  cookie: process.env.COOKIE
+  referer: ' https://www.bilibili.tv/', cookie: process.env.COOKIE
 }
 
 function formatTime(seconds) {
@@ -37,21 +36,30 @@ async function askQuestion(query) {
 }
 
 async function mergeVideo(name) {
-  const progressBar = new ProgressBar('[:bar] :percent :etas', {
-    width: 40, complete: '=', incomplete: ' ', renderThrottle: 1, total: 100
-  })
-
-  ffmpeg()
-    .addInput(Path.resolve(__dirname, 'temp', 'video.m4v'))
-    .addInput(Path.resolve(__dirname, 'temp', 'audio.m4a'))
-    .addInput(Path.resolve(__dirname, 'temp', 'subtitle.srt'))
-    .addOptions(['-map 0:v', '-map 1:a', '-c:v copy', '-c:s mov_text'])
-    .format('mp4')
-    .on('error', error => console.log(error))
-    .on('progress', (e) => {
-      progressBar.tick(e.percent)
+  return new Promise((resolve, reject) => {
+    const progressBar = new ProgressBar('[:bar] :percent :etas', {
+      width: 40, complete: '=', incomplete: ' ', renderThrottle: 1, total: 100
     })
-    .saveToFile(Path.resolve(__dirname, 'output', name))
+
+    ffmpeg()
+      .addInput(Path.resolve(__dirname, 'temp', 'video.m4v'))
+      .addInput(Path.resolve(__dirname, 'temp', 'audio.m4a'))
+      .addInput(Path.resolve(__dirname, 'temp', 'subtitle.srt'))
+      .addOptions(['-map 0', '-map 1', '-map 2', '-c copy', '-c:s mov_text',])
+      .on('error', (error) => {
+        if (error) {
+          console.log(error);
+          reject(1);
+        }
+      })
+      .on('progress', (e) => {
+        progressBar.tick(e.percent)
+      })
+      .on('end', () => {
+        resolve(1);
+      })
+      .saveToFile(Path.resolve(__dirname, 'output', name))
+  })
 }
 
 async function downloadFile(url, filename) {
@@ -149,10 +157,16 @@ const main = async function () {
   console.log('Start download subtitle:');
   await downloadFile(subtitleUrl, 'subtitle.json');
 
-  convert2srt();
+  await convert2srt();
 
   console.log('Merge resources:');
   await mergeVideo('final.mp4');
+
+  // remove temp
+  fs.unlinkSync(Path.resolve(__dirname, 'temp', 'video.m4v'));
+  fs.unlinkSync(Path.resolve(__dirname, 'temp', 'audio.m4a'));
+  fs.unlinkSync(Path.resolve(__dirname, 'temp', 'subtitle.srt'));
+  fs.unlinkSync(Path.resolve(__dirname, 'temp', 'subtitle.json'));
 }
 
 main();
