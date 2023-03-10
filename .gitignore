@@ -1,4 +1,6 @@
 .env
 node_modules
 output/*
+!output/.keep
 temp/*
+!temp/.keep
